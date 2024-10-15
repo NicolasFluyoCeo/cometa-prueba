@@ -1,0 +1,57 @@
+services:
+  backend:
+    container_name: backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: [ "uv", "run", "fastapi", "run", "src/presentation/api/main.py", "--reload" ]
+
+  backend-consumer:
+    container_name: backend-consumer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: "uv run python -m src.presentation.consumer"
+    volumes:
+      - .:/app
+    ports:
+      - "8001:8001"
+    depends_on:
+      backend-rabbitmq:
+        condition: service_healthy
+
+  backend-rabbitmq:
+    image: heidiks/rabbitmq-delayed-message-exchange
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "pass"
+      RABBITMQ_DEFAULT_VHOST: "/"
+    healthcheck:
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
